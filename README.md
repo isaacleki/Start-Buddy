@@ -114,3 +114,4 @@ The app is PWA-ready. To complete the setup:
 
 MIT
 
+✅ Proper Git collaboration workflow established (Nov 2025)
