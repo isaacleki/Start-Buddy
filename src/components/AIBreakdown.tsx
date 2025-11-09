@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useStore } from '@/lib/store';
@@ -19,13 +19,21 @@ export function AIBreakdown({ taskId, onStepsReady }: AIBreakdownProps) {
   const [error, setError] = useState<string | null>(null);
   const [fallback, setFallback] = useState(false);
   const task = useStore((state) => state.tasks.find((t) => t.id === taskId));
-  const steps = useStore((state) => state.getStepsForTask(taskId));
+  const allSteps = useStore((state) => state.steps);
   const setSteps = useStore((state) => state.setSteps);
   const recordTimeToStart = useStore((state) => state.recordTimeToStart);
   const taskStartTime = useStore((state) => {
     const t = state.tasks.find((t) => t.id === taskId);
     return t?.created_at;
   });
+
+  const steps = useMemo(
+    () =>
+      allSteps
+        .filter((step) => step.task_id === taskId)
+        .sort((a, b) => a.order - b.order),
+    [allSteps, taskId]
+  );
 
   // Auto-advance to editing steps when steps are ready
   useEffect(() => {

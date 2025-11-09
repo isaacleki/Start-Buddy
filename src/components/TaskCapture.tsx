@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -13,7 +13,13 @@ export function TaskCapture() {
   const [isAdding, setIsAdding] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const addTask = useStore((state) => state.addTask);
-  const currentTask = useStore((state) => state.getCurrentTask());
+  const currentTaskId = useStore((state) => state.currentTaskId);
+  const tasks = useStore((state) => state.tasks);
+
+  const currentTask = useMemo(() => {
+    if (!currentTaskId) return undefined;
+    return tasks.find((task) => task.id === currentTaskId);
+  }, [currentTaskId, tasks]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

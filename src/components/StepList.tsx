@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,12 +15,20 @@ interface StepListProps {
 }
 
 export function StepList({ taskId, onStepsReady }: StepListProps) {
-  const steps = useStore((state) => state.getStepsForTask(taskId));
+  const allSteps = useStore((state) => state.steps);
   const updateStep = useStore((state) => state.updateStep);
   const deleteStep = useStore((state) => state.deleteStep);
   const reorderSteps = useStore((state) => state.reorderSteps);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
+
+  const steps = useMemo(
+    () =>
+      allSteps
+        .filter((step) => step.task_id === taskId)
+        .sort((a, b) => a.order - b.order),
+    [allSteps, taskId]
+  );
 
   const handleEdit = (step: Step) => {
     setEditingId(step.id);
