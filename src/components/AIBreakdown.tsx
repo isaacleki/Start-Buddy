@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useStore } from '@/lib/store';
@@ -18,6 +18,7 @@ export function AIBreakdown({ taskId, onStepsReady }: AIBreakdownProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [fallback, setFallback] = useState(false);
+  const hasRequestedRef = useRef(false);
   const task = useStore((state) => state.tasks.find((t) => t.id === taskId));
   const allSteps = useStore((state) => state.steps);
   const setSteps = useStore((state) => state.setSteps);
@@ -47,11 +48,24 @@ export function AIBreakdown({ taskId, onStepsReady }: AIBreakdownProps) {
   }, [loading, steps.length, onStepsReady]);
 
   useEffect(() => {
+    hasRequestedRef.current = false;
+  }, [taskId, task?.title]);
+
+  useEffect(() => {
     const generateSteps = async () => {
       if (!task) return;
 
+      if (steps.length > 0) {
+        setLoading(false);
+        return;
+      }
+
+      if (hasRequestedRef.current) return;
+      hasRequestedRef.current = true;
+
       setLoading(true);
       setError(null);
+      setFallback(false);
       const startTime = Date.now();
 
       try {
@@ -95,7 +109,7 @@ export function AIBreakdown({ taskId, onStepsReady }: AIBreakdownProps) {
     };
 
     generateSteps();
-  }, [taskId, task, setSteps, recordTimeToStart, taskStartTime]);
+  }, [taskId, task, steps.length, setSteps, recordTimeToStart, taskStartTime]);
 
   if (loading) {
     return (
