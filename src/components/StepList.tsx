@@ -5,11 +5,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useStore, StepStatus } from '@/lib/store';
+import { Plus, Trash2 } from 'lucide-react';
 
 const statusCopy: Record<StepStatus, { label: string; className: string; dot: string }> = {
   todo: { label: 'Queued', className: 'text-muted-foreground', dot: 'bg-muted-foreground/40' },
-  doing: { label: 'In progress', className: 'text-emerald-600 font-medium', dot: 'bg-emerald-500' },
-  done: { label: 'Completed', className: 'text-emerald-500', dot: 'bg-emerald-500' },
+  doing: { label: 'In progress', className: 'text-teal-600 dark:text-teal-400 font-medium', dot: 'bg-teal-500' },
+  done: { label: 'Completed', className: 'text-teal-500 dark:text-teal-400', dot: 'bg-teal-500' },
 };
 
 interface StepListProps {
@@ -23,6 +24,8 @@ export function StepList({ editable = false }: StepListProps) {
   const updateStepText = useStore((state) => state.updateStepText);
   const updateStepDuration = useStore((state) => state.updateStepDuration);
   const moveStep = useStore((state) => state.moveStep);
+  const addStep = useStore((state) => state.addStep);
+  const deleteStep = useStore((state) => state.deleteStep);
 
   const activeTask = useMemo(() => tasks.find((task) => task.id === activeTaskId), [tasks, activeTaskId]);
   const steps = activeTask?.steps ?? [];
@@ -68,7 +71,7 @@ export function StepList({ editable = false }: StepListProps) {
               <div className="flex items-center justify-between text-xs uppercase tracking-wide text-muted-foreground">
                 <span>
                   Step {index + 1}
-                  {step.status === 'doing' && <span className="ml-2 text-emerald-600">Current focus</span>}
+                  {step.status === 'doing' && <span className="ml-2 text-teal-600 dark:text-teal-400">Current focus</span>}
                 </span>
                 {editable && (
                   <div className="flex gap-1">
@@ -77,6 +80,8 @@ export function StepList({ editable = false }: StepListProps) {
                       variant="ghost"
                       onClick={() => moveStep(activeTask!.id, step.id, 'up')}
                       disabled={!canMoveUp}
+                      className="h-7 w-7 p-0"
+                      aria-label="Move up"
                     >
                       ↑
                     </Button>
@@ -85,8 +90,19 @@ export function StepList({ editable = false }: StepListProps) {
                       variant="ghost"
                       onClick={() => moveStep(activeTask!.id, step.id, 'down')}
                       disabled={!canMoveDown}
+                      className="h-7 w-7 p-0"
+                      aria-label="Move down"
                     >
                       ↓
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => deleteStep(activeTask!.id, step.id)}
+                      className="h-7 w-7 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20"
+                      aria-label="Delete step"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </div>
                 )}
@@ -123,6 +139,16 @@ export function StepList({ editable = false }: StepListProps) {
             </div>
           );
         })}
+        {editable && (
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={() => addStep(activeTask!.id)}
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Add step
+          </Button>
+        )}
         {steps.length > 0 && !editable && (
           <p className="text-xs text-muted-foreground">
             Progress: {completed}/{steps.length} steps complete.

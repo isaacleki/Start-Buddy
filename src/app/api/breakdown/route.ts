@@ -14,10 +14,9 @@ function getOpenAIClient() {
   return openaiPromise;
 }
 
-// Rate limiting (simple in-memory store for MVP)
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-const RATE_LIMIT = 10; // 10 requests per minute
-const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
+const RATE_LIMIT = 10;
+const RATE_LIMIT_WINDOW = 60 * 1000;
 
 function checkRateLimit(ip: string): boolean {
   const now = Date.now();
@@ -38,7 +37,6 @@ function checkRateLimit(ip: string): boolean {
 
 export async function POST(request: NextRequest) {
   try {
-    // Rate limiting
     const ip = request.headers.get('x-forwarded-for') || 'unknown';
     if (!checkRateLimit(ip)) {
       return NextResponse.json(
@@ -57,13 +55,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate task title (profanity/unsafe filter - basic)
-    const unsafePatterns = [
-      /violence/i,
-      /harm/i,
-      /illegal/i,
-      // Add more patterns as needed
-    ];
+    const unsafePatterns = [/violence/i, /harm/i, /illegal/i];
 
     if (unsafePatterns.some((pattern) => pattern.test(taskTitle))) {
       return NextResponse.json(
@@ -72,7 +64,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // If no API key, use fallback
     const openai = await getOpenAIClient();
     if (!openai) {
       const fallbackSteps = getUniversalTemplateSteps(taskTitle);
@@ -83,7 +74,6 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      // Call OpenAI API
       const completion = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
         messages: [
@@ -123,7 +113,6 @@ Keep steps to 1-2 minutes maximum. Use simple, calm language.`,
       const parsed = JSON.parse(content);
       const validated = BreakdownResponseSchema.parse(parsed);
 
-      // Ensure durations are 1 or 2
       const validatedSteps = validated.steps.map((step) => ({
         text: step.text,
         duration_min: step.duration_min === 1 || step.duration_min === 2 ? step.duration_min : 2,
@@ -135,7 +124,6 @@ Keep steps to 1-2 minutes maximum. Use simple, calm language.`,
       });
     } catch (error) {
       console.error('OpenAI API error:', error);
-      // Fallback to template
       const fallbackSteps = getUniversalTemplateSteps(taskTitle);
       return NextResponse.json({
         steps: fallbackSteps,

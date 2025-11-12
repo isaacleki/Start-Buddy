@@ -46,7 +46,7 @@ export default function CompletedTasksPage() {
         <Card>
           <CardContent className="py-10 text-center text-sm text-muted-foreground">
             No completed sessions yet. Run a task from the{' '}
-            <Link href="/" className="text-emerald-600">
+            <Link href="/" className="text-teal-600 dark:text-teal-400">
               active task view
             </Link>{' '}
             and log a reflection when you finish.

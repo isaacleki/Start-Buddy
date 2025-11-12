@@ -21,11 +21,8 @@ export function calculateADS(stats: {
   abandoned_count: number;
   carryovers: number;
 }): number {
-  // Activation Difficulty Score (0-100)
-  // Higher score = more difficult to activate
   let score = 0;
 
-  // Time-to-start penalty (max 40 points)
   if (stats.tts_ms) {
     const ttsMinutes = stats.tts_ms / 60000;
     if (ttsMinutes > 30) score += 40;
@@ -33,13 +30,8 @@ export function calculateADS(stats: {
     else if (ttsMinutes > 5) score += 10;
   }
 
-  // Stuck count penalty (max 30 points)
   score += Math.min(stats.stuck_count * 10, 30);
-
-  // Abandoned count penalty (max 20 points)
   score += Math.min(stats.abandoned_count * 10, 20);
-
-  // Carryover penalty (max 10 points)
   score += Math.min(stats.carryovers * 5, 10);
 
   return Math.min(score, 100);
@@ -55,7 +47,6 @@ export function getUniversalTemplateSteps(taskTitle: string): Array<{
   text: string;
   duration_min: 1 | 2;
 }> {
-  // Universal fallback template
   return [
     {
       text: `Break down "${taskTitle}" into smaller parts`,

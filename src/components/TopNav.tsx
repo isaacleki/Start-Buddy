@@ -21,7 +21,7 @@ export function TopNav() {
           <Link
             key={link.label}
             href={link.path}
-            className={`transition hover:text-foreground ${active ? 'text-emerald-600 font-medium' : ''}`}
+            className={`transition hover:text-foreground ${active ? 'text-teal-600 dark:text-teal-400 font-medium' : ''}`}
           >
             {link.label}
           </Link>

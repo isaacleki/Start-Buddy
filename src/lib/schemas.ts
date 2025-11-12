@@ -46,7 +46,7 @@ export type Session = z.infer<typeof SessionSchema>;
 // Stats Schema (derived)
 export const StatsSchema = z.object({
   task_id: z.string(),
-  tts_ms: z.number().optional(), // time-to-start in milliseconds
+  tts_ms: z.number().optional(),
   stuck_count: z.number().default(0),
   abandoned_count: z.number().default(0),
   carryovers: z.number().default(0),
