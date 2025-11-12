@@ -2,11 +2,12 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Plus, Clock, Users, User } from 'lucide-react';
+import { Plus, Clock, Users, User, MessageSquare } from 'lucide-react';
 
 const links = [
   { path: '/tasks/new', label: 'Add', icon: Plus },
   { path: '/focus', label: 'Focus', icon: Clock },
+  { path: '/chat', label: 'Chat', icon: MessageSquare },
   { path: '/communities', label: 'Community', icon: Users },
   { path: '/account', label: 'Account', icon: User },
 ];

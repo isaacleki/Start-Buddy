@@ -7,6 +7,7 @@ const links = [
   { path: '/tasks/new', label: 'Add task' },
   { path: '/focus', label: 'Focus' },
   { path: '/communities', label: 'Communities' },
+  { path: '/chat', label: 'Chat' },
   { path: '/account', label: 'Account' },
 ];
 
