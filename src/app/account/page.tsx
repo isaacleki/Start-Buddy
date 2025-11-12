@@ -4,8 +4,9 @@ import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useStore } from '@/lib/store';
-import { Trash2, CheckCircle2 } from 'lucide-react';
+import { Trash2, CheckCircle2, Settings } from 'lucide-react';
 import Link from 'next/link';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 export default function AccountPage() {
   const tasks = useStore((state) => state.tasks);
@@ -20,7 +21,7 @@ export default function AccountPage() {
     <div className="mx-auto flex max-w-4xl flex-col gap-6 px-4 py-8">
       <Card>
         <CardHeader className="space-y-2">
-          <div className="flex items-center gap-2 text-sm font-medium text-emerald-600">
+          <div className="flex items-center gap-2 text-sm font-medium text-teal-600 dark:text-teal-400">
             <CheckCircle2 className="h-4 w-4" />
             Session history
           </div>
@@ -31,10 +32,29 @@ export default function AccountPage() {
         </CardHeader>
       </Card>
 
+      <Card>
+        <CardHeader className="space-y-2">
+          <div className="flex items-center gap-2 text-sm font-medium text-teal-600 dark:text-teal-400">
+            <Settings className="h-4 w-4" />
+            Settings
+          </div>
+          <CardTitle className="text-xl">Preferences</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium">Theme</p>
+              <p className="text-xs text-muted-foreground">Switch between light and dark mode</p>
+            </div>
+            <ThemeToggle />
+          </div>
+        </CardContent>
+      </Card>
+
       {completedTasks.length === 0 ? (
         <Card>
           <CardContent className="py-10 text-center text-sm text-muted-foreground">
-            No completed sessions yet. Start with the <Link href="/tasks/new" className="text-emerald-600">add task</Link> flow and lock in
+            No completed sessions yet. Start with the <Link href="/tasks/new" className="text-teal-600 dark:text-teal-400">add task</Link> flow and lock in
             a micro-step streak.
           </CardContent>
         </Card>

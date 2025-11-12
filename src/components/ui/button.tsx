@@ -5,20 +5,20 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-2xl text-sm font-semibold transition-all duration-200 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-95 relative overflow-hidden",
   {
     variants: {
       variant: {
         default:
-          "bg-primary text-primary-foreground shadow-xs hover:bg-primary/90",
+          "bg-gradient-to-b from-primary to-primary/90 text-primary-foreground shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 border border-white/20 before:absolute before:inset-0 before:bg-gradient-to-b before:from-white/20 before:to-transparent before:pointer-events-none [&>*]:relative [&>*]:z-10",
         destructive:
-          "bg-destructive text-white shadow-xs hover:bg-destructive/90",
+          "bg-gradient-to-b from-destructive to-destructive/90 text-white shadow-lg shadow-destructive/25 hover:shadow-xl hover:shadow-destructive/30 border border-white/20 before:absolute before:inset-0 before:bg-gradient-to-b before:from-white/20 before:to-transparent before:pointer-events-none [&>*]:relative [&>*]:z-10",
         outline:
-          "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground",
+          "border-2 border-white/30 dark:border-white/20 bg-white/40 dark:bg-white/5 backdrop-blur-xl shadow-lg shadow-black/5 dark:shadow-black/30 hover:bg-white/60 dark:hover:bg-white/10 hover:shadow-xl before:absolute before:inset-0 before:bg-gradient-to-b before:from-white/30 before:to-transparent dark:before:from-white/5 before:pointer-events-none [&>*]:relative [&>*]:z-10 text-foreground",
         secondary:
-          "bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary/80",
+          "bg-gradient-to-b from-secondary to-secondary/90 text-secondary-foreground shadow-lg shadow-secondary/20 hover:shadow-xl border border-white/20 before:absolute before:inset-0 before:bg-gradient-to-b before:from-white/20 before:to-transparent before:pointer-events-none [&>*]:relative [&>*]:z-10",
         ghost:
-          "hover:bg-accent hover:text-accent-foreground",
+          "hover:bg-white/40 dark:hover:bg-white/10 backdrop-blur-sm",
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {

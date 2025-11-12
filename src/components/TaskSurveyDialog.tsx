@@ -15,7 +15,11 @@ import { useStore } from '@/lib/store';
 const scaleOptions = [1, 2, 3, 4, 5];
 const clampScore = (value: number) => Math.min(5, Math.max(1, Math.round(value)));
 
-export function TaskSurveyDialog() {
+interface TaskSurveyDialogProps {
+  showCelebration?: boolean;
+}
+
+export function TaskSurveyDialog({ showCelebration = false }: TaskSurveyDialogProps) {
   const showSurveyFor = useStore((state) => state.showSurveyFor);
   const saveSurvey = useStore((state) => state.saveSurvey);
   const closeSurvey = useStore((state) => state.closeSurvey);
@@ -48,7 +52,7 @@ export function TaskSurveyDialog() {
   };
 
   return (
-    <Dialog open={Boolean(showSurveyFor)} onOpenChange={(open) => !open && closeSurvey()}>
+    <Dialog open={Boolean(showSurveyFor) && !showCelebration} onOpenChange={(open) => !open && closeSurvey()}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Quick reflection</DialogTitle>
