@@ -1,302 +1,257 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useStore } from '@/lib/store';
-import { calmCopy } from '@/lib/calm-copy';
-import { formatTime } from '@/lib/utils';
-import { Play, Pause, Check, ArrowRight } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { StuckModal } from './StuckModal';
 
-interface FocusSessionProps {
-  taskId: string;
-  stepId: string;
-  onComplete: () => void;
-  onStuck: () => void;
-}
+export function FocusSession() {
+  const tasks = useStore((state) => state.tasks);
+  const activeTaskId = useStore((state) => state.activeTaskId);
+  const markStepDone = useStore((state) => state.markStepDone);
+  const triggerLowEnergy = useStore((state) => state.triggerLowEnergy);
+  const splitCurrentStep = useStore((state) => state.splitCurrentStep);
+  const insertHelperStep = useStore((state) => state.insertHelperStep);
+  const autoStart = useStore((state) => state.autoStartTimer);
+  const acknowledgeAutoStart = useStore((state) => state.acknowledgeAutoStart);
+  const lastEncouragement = useStore((state) => state.lastEncouragement);
 
-export function FocusSession({
-  taskId,
-  stepId,
-  onComplete,
-  onStuck,
-}: FocusSessionProps) {
-  const step = useStore((state) =>
-    state.steps.find((s) => s.id === stepId)
+  const activeTask = useMemo(() => tasks.find((task) => task.id === activeTaskId), [tasks, activeTaskId]);
+  const steps = useMemo(() => activeTask?.steps ?? [], [activeTask]);
+  const currentStep = useMemo(
+    () => steps.find((step) => step.status === 'doing') ?? null,
+    [steps]
   );
-  const session = useStore((state) => state.getCurrentSession());
-  const startSession = useStore((state) => state.startSession);
-  const endSession = useStore((state) => state.endSession);
-  const updateSession = useStore((state) => state.updateSession);
+  const stepIndex = useMemo(
+    () => (currentStep ? steps.findIndex((step) => step.id === currentStep.id) : -1),
+    [steps, currentStep]
+  );
+  const completedCount = steps.filter((step) => step.status === 'done').length;
 
-  const [timeLeft, setTimeLeft] = useState(0);
+  const [selectedMinutes, setSelectedMinutes] = useState(() => currentStep?.duration_min ?? 2);
+  const [timeLeft, setTimeLeft] = useState(selectedMinutes * 60);
   const [isRunning, setIsRunning] = useState(false);
-  const [isPaused, setIsPaused] = useState(false);
-  const [isComplete, setIsComplete] = useState(false);
+  const [stuckOpen, setStuckOpen] = useState(false);
+  const [announcement, setAnnouncement] = useState('');
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const startTimeRef = useRef<number>(0);
-  const pausedTimeRef = useRef<number>(0);
 
-  // Initialize session and timer
   useEffect(() => {
-    if (!step) return;
+    const suggested = currentStep?.duration_min ?? 2;
+    setSelectedMinutes(suggested);
+    setTimeLeft(suggested * 60);
+    setIsRunning(false);
+  }, [currentStep?.id, currentStep?.duration_min]);
 
-    if (!session) {
-      // Start a new session with the step's duration
-      const timerMin = step.duration_min;
-      const newSession = startSession(taskId, stepId, timerMin);
-      setTimeLeft(timerMin * 60);
-      startTimeRef.current = Date.now();
-    } else {
-      // Resume existing session - don't auto-start, let user choose
-      const elapsed = session.started_at
-        ? Math.floor((Date.now() - session.started_at) / 1000)
-        : 0;
-      const totalSeconds = session.timer_min * 60;
-      const remaining = Math.max(0, totalSeconds - elapsed);
-      setTimeLeft(remaining);
-      if (remaining <= 0) {
-        setIsComplete(true);
-      } else {
-        // Don't auto-start, user needs to click start
-        setIsRunning(false);
-        setIsPaused(false);
-      }
-    }
-
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-    };
-  }, [step, session, taskId, stepId, startSession]);
-
-  // Handle visibility change (tab backgrounded)
   useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.hidden && isRunning) {
-        // Save current state
-        if (session) {
-          updateSession(session.id, {});
-        }
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [isRunning, session, updateSession]);
-
-  // Timer interval
-  useEffect(() => {
-    if (isRunning && !isPaused && timeLeft > 0) {
+    if (isRunning && timeLeft > 0) {
       intervalRef.current = setInterval(() => {
         setTimeLeft((prev) => {
           if (prev <= 1) {
             setIsRunning(false);
-            setIsComplete(true);
-            if (session) {
-              endSession(session.id, true);
-            }
+            setAnnouncement('Timer finished. Mark it done or extend as needed.');
             return 0;
           }
           return prev - 1;
         });
       }, 1000);
-    } else {
+    } else if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    return () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
       }
-    }
+    };
+  }, [isRunning, timeLeft]);
 
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
+  useEffect(() => {
+    if (autoStart) {
+      setSelectedMinutes(autoStart.minutes);
+      setTimeLeft(autoStart.minutes * 60);
+      setIsRunning(true);
+      setAnnouncement(autoStart.message ?? `Timer started for ${autoStart.minutes} minutes.`);
+      acknowledgeAutoStart();
+    }
+  }, [autoStart, acknowledgeAutoStart]);
+
+  const handleDone = useCallback(() => {
+    if (!currentStep) return;
+    setIsRunning(false);
+    markStepDone();
+    setAnnouncement('Step marked complete. Nice progress.');
+    setTimeLeft(selectedMinutes * 60);
+  }, [currentStep, markStepDone, selectedMinutes]);
+
+  const handleSplit = useCallback(() => {
+    splitCurrentStep(undefined, { autoStartMinutes: 2, message: 'Split applied. Two-minute action on deck.' });
+    setStuckOpen(false);
+  }, [splitCurrentStep]);
+
+  const handleLowEnergy = useCallback(() => {
+    triggerLowEnergy('Gentle two-minute nudge queued.');
+    setStuckOpen(false);
+  }, [triggerLowEnergy]);
+
+  const handleHelperStep = useCallback(() => {
+    insertHelperStep(
+      { text: '60s search: drawer/hamper/bathroom', duration_min: 1 },
+      { autoStartMinutes: 1, message: 'Quick search ready. Take 60 seconds.' }
+    );
+    setStuckOpen(false);
+  }, [insertHelperStep]);
+
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      if (stuckOpen) return;
+      if (!currentStep) return;
+      if (event.code === 'Space') {
+        event.preventDefault();
+        setIsRunning((prev) => {
+          const next = !prev;
+          setAnnouncement(next ? 'Timer running—focus mode engaged.' : 'Timer paused.');
+          return next;
+        });
+      } else if (event.key === 'Enter') {
+        event.preventDefault();
+        handleDone();
+      } else if (event.key === 'Escape') {
+        event.preventDefault();
+        setStuckOpen(true);
       }
     };
-  }, [isRunning, isPaused, timeLeft, session, endSession]);
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [currentStep, stuckOpen, handleDone]);
 
-  const handleStart = () => {
-    if (!session) {
-      const timerMin = step?.duration_min || 2;
-      startSession(taskId, stepId, timerMin);
-      setTimeLeft(timerMin * 60);
-      startTimeRef.current = Date.now();
-    }
-    setIsRunning(true);
-    setIsPaused(false);
-  };
-
-  const handlePause = () => {
-    setIsRunning(false);
-    setIsPaused(true);
-    pausedTimeRef.current = Date.now();
-  };
-
-  const handleResume = () => {
-    setIsRunning(true);
-    setIsPaused(false);
-  };
-
-  const handleComplete = () => {
-    if (session) {
-      endSession(session.id, true);
-    }
-    setIsComplete(true);
-    setIsRunning(false);
-  };
-
-  const handleQuickStart = (minutes: number) => {
-    if (session) {
-      endSession(session.id, false);
-    }
-    const newSession = startSession(taskId, stepId, minutes);
-    setTimeLeft(minutes * 60);
-    startTimeRef.current = Date.now();
-    setIsRunning(true);
-    setIsPaused(false);
-    setIsComplete(false);
-  };
-
-  if (!step) {
-    return null;
-  }
-
-  if (isComplete) {
+  if (!activeTask) {
     return (
       <Card>
-        <CardContent className="pt-6">
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="text-center space-y-4"
-          >
-            <div className="text-4xl mb-4">🎉</div>
-            <h3 className="text-2xl font-semibold">
-              {calmCopy.focusSession.celebrate.stepComplete}
-            </h3>
-            <p className="text-muted-foreground">
-              {calmCopy.focusSession.celebrate.greatJob}
-            </p>
-            <div className="flex gap-2 justify-center mt-6">
-              <Button onClick={onComplete} size="lg">
-                Continue
-                <ArrowRight className="h-4 w-4 ml-2" />
-              </Button>
-              <Button variant="outline" onClick={onStuck} size="lg">
-                {calmCopy.focusSession.takeBreak}
-              </Button>
-            </div>
-          </motion.div>
+        <CardHeader>
+          <CardTitle className="text-lg">Focus Session</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            Select or add a task to start the focus timer.
+          </p>
         </CardContent>
       </Card>
     );
   }
 
+  const totalSteps = steps.length;
+  const currentPosition = stepIndex >= 0 ? stepIndex + 1 : totalSteps;
+
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="text-lg">
-          {calmCopy.focusSession.currentStep}
-        </CardTitle>
+      <CardHeader className="space-y-1">
+        <CardTitle className="text-lg">Focus Session</CardTitle>
+        <p className="text-sm text-muted-foreground">
+          {lastEncouragement || 'Micro progress unlocks macro momentum.'}
+        </p>
+        <p className="text-xs text-emerald-700">
+          Micro-streak: {completedCount} step{completedCount === 1 ? '' : 's'} complete
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Shortcuts: <span className="font-medium">Space</span> •{' '}
+          <span className="font-medium">Enter</span> • <span className="font-medium">Esc</span> •{' '}
+          <span className="font-medium">E</span>
+        </p>
       </CardHeader>
       <CardContent className="space-y-6">
-        <div className="text-center">
-          <p className="text-lg font-medium mb-2">{step.text}</p>
+        <div className="space-y-2 text-center">
           <p className="text-sm text-muted-foreground">
-            {step.duration_min} min session
+            Step {currentPosition} of {totalSteps}
+          </p>
+          <h2 className="text-xl font-semibold">{currentStep?.text ?? 'All steps complete'}</h2>
+          <p className="text-sm text-muted-foreground">
+            Suggested: {currentStep?.duration_min ?? 2} minute focus burst
           </p>
         </div>
 
-        {!isRunning && !session && (
-          <div className="space-y-4">
-            <p className="text-sm text-center text-muted-foreground">
-              {calmCopy.focusSession.chooseDuration}
-            </p>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-              <Button
-                variant="outline"
-                onClick={() => handleQuickStart(2)}
-                className="h-16"
-              >
-                2 min
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => handleQuickStart(5)}
-                className="h-16"
-              >
-                5 min
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => handleQuickStart(10)}
-                className="h-16"
-              >
-                10 min
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => handleQuickStart(15)}
-                className="h-16"
-              >
-                15 min
-              </Button>
-            </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium" htmlFor="timer-minutes">
+            Timer minutes
+          </label>
+          <input
+            id="timer-minutes"
+            type="range"
+            min={1}
+            max={60}
+            value={selectedMinutes}
+            onChange={(event) => {
+              const value = Number(event.target.value) || 1;
+              setSelectedMinutes(value);
+              if (!isRunning) {
+                setTimeLeft(value * 60);
+              }
+            }}
+            className="w-full accent-emerald-600"
+          />
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <span>1 min</span>
+            <span className="text-foreground font-medium">{selectedMinutes} min</span>
+            <span>60 min</span>
           </div>
-        )}
+        </div>
 
-        {(isRunning || session) && (
-          <div className="space-y-4">
-            <div className="text-center">
-              <div className="text-6xl font-bold mb-2">
-                {formatTime(timeLeft)}
-              </div>
-              <p className="text-sm text-muted-foreground">
-                {isRunning
-                  ? calmCopy.focusSession.timerRunning
-                  : calmCopy.focusSession.timerPaused}
-              </p>
-            </div>
-
-            <div className="flex gap-2 justify-center">
-              {!isRunning && !isPaused && (
-                <Button onClick={handleStart} size="lg">
-                  <Play className="h-4 w-4 mr-2" />
-                  Start
-                </Button>
-              )}
-              {isRunning && (
-                <Button onClick={handlePause} variant="outline" size="lg">
-                  <Pause className="h-4 w-4 mr-2" />
-                  Pause
-                </Button>
-              )}
-              {isPaused && (
-                <>
-                  <Button onClick={handleResume} size="lg">
-                    <Play className="h-4 w-4 mr-2" />
-                    Resume
-                  </Button>
-                  <Button onClick={handleComplete} variant="outline" size="lg">
-                    <Check className="h-4 w-4 mr-2" />
-                    Complete
-                  </Button>
-                </>
-              )}
-            </div>
-
-            <div className="flex justify-center">
-              <Button variant="ghost" onClick={onStuck} size="sm">
-                {calmCopy.stuck.title}
-              </Button>
-            </div>
+        <div className="text-center space-y-2">
+          <div className="text-6xl font-bold tracking-wide" aria-live="polite">
+            {new Date(timeLeft * 1000).toISOString().substring(14, 19)}
           </div>
-        )}
+          <p className="text-sm text-muted-foreground">
+            {isRunning ? 'Timer running…' : 'Timer ready. Adjust minutes and press Start.'}
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          <Button
+            onClick={() => {
+              if (isRunning) {
+                setIsRunning(false);
+                setAnnouncement('Timer paused.');
+              } else {
+                setTimeLeft(selectedMinutes * 60);
+                setIsRunning(true);
+                setAnnouncement(`Timer started for ${selectedMinutes} minutes.`);
+              }
+            }}
+          >
+            {isRunning ? 'Pause' : 'Start'}
+          </Button>
+          <Button onClick={handleDone} variant="default">
+            Done
+          </Button>
+          <Button onClick={() => setStuckOpen(true)} variant="outline">
+            I’m Stuck
+          </Button>
+        </div>
+
+        <div className="text-sm text-muted-foreground" aria-live="polite">
+          {announcement}
+        </div>
       </CardContent>
+
+      <StuckModal
+        open={stuckOpen}
+        onOpenChange={setStuckOpen}
+        onCommunity={() => {
+          setStuckOpen(false);
+          window.open('https://discord.gg/focus-friends', '_blank');
+        }}
+        onNudge={() => {
+          handleLowEnergy();
+          setStuckOpen(false);
+        }}
+        onReedit={() => {
+          setStuckOpen(false);
+          if (activeTaskId) {
+            window.location.href = `/tasks/new?task=${activeTaskId}#steps`;
+          }
+        }}
+      />
     </Card>
   );
 }
