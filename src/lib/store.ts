@@ -120,6 +120,7 @@ interface AppState {
   lastEncouragement: string;
 
   createTaskFromTemplate: (templateId: string, overrides?: { title?: string; category?: Category }) => string;
+  createTaskFromSteps: (title: string, category: Category, steps: Array<{ text: string; duration_min: number }>) => string;
   setActiveTask: (taskId: string | null) => void;
   markStepDone: () => void;
   splitCurrentStep: (
@@ -306,6 +307,38 @@ export const useStore = create<AppState>((set, get) => ({
       lastEncouragement: newTask.lastEncouragement ?? initialEncouragement,
       autoStartTimer: null,
     }));
+    return newTask.id;
+  },
+
+  createTaskFromSteps: (title, category, steps) => {
+    const t = title?.trim() || 'New task';
+    const builtSteps = steps.map((s, index) => ({
+      id: createId('step'),
+      text: s.text,
+      duration_min: Math.max(1, Math.round(s.duration_min ?? 2)),
+      status: index === 0 ? ('doing' as StepStatus) : ('todo' as StepStatus),
+      order: index,
+    }));
+
+    const newTask: Task = {
+      id: createId('task'),
+      title: t,
+      category,
+      steps: builtSteps,
+      activeStepId: builtSteps[0]?.id ?? null,
+      streak: 0,
+      lastEncouragement: pickEncouragement(0, builtSteps.length),
+      createdAt: Date.now(),
+    };
+
+    set((state) => ({
+      tasks: [...state.tasks, newTask],
+      activeTaskId: newTask.id,
+      lastCreatedTaskId: newTask.id,
+      lastEncouragement: newTask.lastEncouragement ?? initialEncouragement,
+      autoStartTimer: null,
+    }));
+
     return newTask.id;
   },
 
