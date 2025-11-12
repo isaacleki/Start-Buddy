@@ -135,16 +135,149 @@ interface AppState {
   updateStepText: (taskId: string, stepId: string, text: string) => void;
   updateStepDuration: (taskId: string, stepId: string, minutes: number) => void;
   moveStep: (taskId: string, stepId: string, direction: 'up' | 'down') => void;
+  addStep: (taskId: string, afterStepId?: string) => void;
+  deleteStep: (taskId: string, stepId: string) => void;
   saveSurvey: (taskId: string, input: SurveyInput) => void;
   closeSurvey: () => void;
+  triggerSurvey: (taskId: string) => void;
   deleteTask: (taskId: string) => void;
   resetScenario: () => void;
 }
 
 const initialEncouragement = 'Ready when you are.';
 
+function createMockCompletedTasks(): Task[] {
+  const now = Date.now();
+  const oneDayAgo = now - 24 * 60 * 60 * 1000;
+  const threeDaysAgo = now - 3 * 24 * 60 * 60 * 1000;
+  const weekAgo = now - 7 * 24 * 60 * 60 * 1000;
+
+  return [
+    {
+      id: 'mock-1',
+      title: 'Set up morning routine',
+      category: 'personal',
+      steps: [
+        { id: 's1', text: 'Set alarm for 7:00 AM', duration_min: 1, status: 'done' as StepStatus, order: 0 },
+        { id: 's2', text: 'Lay out clothes the night before', duration_min: 2, status: 'done' as StepStatus, order: 1 },
+        { id: 's3', text: 'Prepare breakfast items', duration_min: 3, status: 'done' as StepStatus, order: 2 },
+        { id: 's4', text: 'Write morning checklist', duration_min: 5, status: 'done' as StepStatus, order: 3 },
+      ],
+      activeStepId: null,
+      streak: 1,
+      summary: {
+        ease: 4,
+        energyBefore: 3,
+        energyAfter: 4,
+        deltaEnergy: 1,
+        distractions: 'some',
+        feltEasy: true,
+        note: 'Feels good to have a plan',
+      },
+      createdAt: weekAgo,
+      completedAt: weekAgo + 15 * 60 * 1000,
+    },
+    {
+      id: 'mock-2',
+      title: 'Organize workspace',
+      category: 'work',
+      steps: [
+        { id: 's5', text: 'Clear desk surface', duration_min: 5, status: 'done' as StepStatus, order: 0 },
+        { id: 's6', text: 'Sort papers into folders', duration_min: 10, status: 'done' as StepStatus, order: 1 },
+        { id: 's7', text: 'Organize cables and chargers', duration_min: 5, status: 'done' as StepStatus, order: 2 },
+        { id: 's8', text: 'Set up desk organizer', duration_min: 8, status: 'done' as StepStatus, order: 3 },
+      ],
+      activeStepId: null,
+      streak: 1,
+      summary: {
+        ease: 3,
+        energyBefore: 2,
+        energyAfter: 3,
+        deltaEnergy: 1,
+        distractions: 'none',
+        feltEasy: false,
+        note: 'Took longer than expected but worth it',
+      },
+      createdAt: threeDaysAgo,
+      completedAt: threeDaysAgo + 30 * 60 * 1000,
+    },
+    {
+      id: 'mock-3',
+      title: 'Plan weekly meals',
+      category: 'personal',
+      steps: [
+        { id: 's9', text: 'Check fridge and pantry', duration_min: 3, status: 'done' as StepStatus, order: 0 },
+        { id: 's10', text: 'Choose 5 dinner recipes', duration_min: 10, status: 'done' as StepStatus, order: 1 },
+        { id: 's11', text: 'Write grocery list', duration_min: 5, status: 'done' as StepStatus, order: 2 },
+        { id: 's12', text: 'Schedule grocery shopping', duration_min: 2, status: 'done' as StepStatus, order: 3 },
+      ],
+      activeStepId: null,
+      streak: 1,
+      summary: {
+        ease: 4,
+        energyBefore: 3,
+        energyAfter: 5,
+        deltaEnergy: 2,
+        distractions: 'some',
+        feltEasy: true,
+        note: 'Meal planning saves so much time during the week',
+      },
+      createdAt: threeDaysAgo,
+      completedAt: threeDaysAgo + 25 * 60 * 1000,
+    },
+    {
+      id: 'mock-4',
+      title: 'Create budget tracker',
+      category: 'personal',
+      steps: [
+        { id: 's13', text: 'List all income sources', duration_min: 5, status: 'done' as StepStatus, order: 0 },
+        { id: 's14', text: 'List monthly expenses', duration_min: 10, status: 'done' as StepStatus, order: 1 },
+        { id: 's15', text: 'Set up spreadsheet or app', duration_min: 15, status: 'done' as StepStatus, order: 2 },
+        { id: 's16', text: 'Set spending limits by category', duration_min: 8, status: 'done' as StepStatus, order: 3 },
+      ],
+      activeStepId: null,
+      streak: 1,
+      summary: {
+        ease: 3,
+        energyBefore: 2,
+        energyAfter: 4,
+        deltaEnergy: 2,
+        distractions: 'many',
+        feltEasy: false,
+        note: 'Feels good to have visibility into finances',
+      },
+      createdAt: weekAgo,
+      completedAt: weekAgo + 40 * 60 * 1000,
+    },
+    {
+      id: 'mock-5',
+      title: 'Schedule doctor appointment',
+      category: 'health',
+      steps: [
+        { id: 's17', text: 'Find insurance card', duration_min: 2, status: 'done' as StepStatus, order: 0 },
+        { id: 's18', text: 'Call clinic or use online portal', duration_min: 5, status: 'done' as StepStatus, order: 1 },
+        { id: 's19', text: 'Add appointment to calendar', duration_min: 2, status: 'done' as StepStatus, order: 2 },
+        { id: 's20', text: 'Set reminder for day before', duration_min: 1, status: 'done' as StepStatus, order: 3 },
+      ],
+      activeStepId: null,
+      streak: 1,
+      summary: {
+        ease: 5,
+        energyBefore: 4,
+        energyAfter: 5,
+        deltaEnergy: 1,
+        distractions: 'none',
+        feltEasy: true,
+        note: 'Quick win!',
+      },
+      createdAt: oneDayAgo,
+      completedAt: oneDayAgo + 12 * 60 * 1000,
+    },
+  ];
+}
+
 export const useStore = create<AppState>((set, get) => ({
-  tasks: [],
+  tasks: createMockCompletedTasks(),
   activeTaskId: null,
   lastCreatedTaskId: null,
   autoStartTimer: null,
@@ -186,7 +319,6 @@ export const useStore = create<AppState>((set, get) => ({
       }
       const task = state.tasks.find((t) => t.id === taskId);
       if (!task) return state;
-      // Ensure one step is marked as doing
       const nextSteps = task.steps.map((step) => ({ ...step }));
       if (!nextSteps.some((step) => step.status === 'doing')) {
         const nextIndex = nextSteps.findIndex((step) => step.status !== 'done');
@@ -248,7 +380,7 @@ export const useStore = create<AppState>((set, get) => ({
               }
             : t
         ),
-        showSurveyFor: allDone ? activeTaskId : state.showSurveyFor,
+        showSurveyFor: allDone ? null : state.showSurveyFor,
         activeTaskId: allDone ? activeTaskId : state.activeTaskId,
         lastEncouragement: encouragement,
         autoStartTimer: null,
@@ -408,6 +540,65 @@ export const useStore = create<AppState>((set, get) => ({
       };
     }),
 
+  addStep: (taskId, afterStepId) =>
+    set((state) => {
+      const task = state.tasks.find((t) => t.id === taskId);
+      if (!task) return state;
+      const steps = [...task.steps];
+      const newStep: TaskStep = {
+        id: createId('step'),
+        text: 'New step',
+        duration_min: 2,
+        status: 'todo' as StepStatus,
+        order: 0,
+      };
+
+      if (afterStepId) {
+        const insertIndex = steps.findIndex((step) => step.id === afterStepId);
+        if (insertIndex !== -1) {
+          steps.splice(insertIndex + 1, 0, newStep);
+        } else {
+          steps.push(newStep);
+        }
+      } else {
+        steps.push(newStep);
+      }
+
+      const ordered = steps.map((step, order) => ({ ...step, order }));
+      return {
+        tasks: state.tasks.map((t) => (t.id === taskId ? { ...t, steps: ordered } : t)),
+      };
+    }),
+
+  deleteStep: (taskId, stepId) =>
+    set((state) => {
+      const task = state.tasks.find((t) => t.id === taskId);
+      if (!task) return state;
+      const steps = task.steps.filter((step) => step.id !== stepId);
+      
+      if (steps.length === 0) {
+        return state;
+      }
+
+      const ordered = steps.map((step, order) => ({ ...step, order }));
+      const wasActiveStep = task.activeStepId === stepId;
+      const newActiveStepId = wasActiveStep
+        ? ordered.find((step) => step.status === 'doing')?.id ?? ordered[0]?.id ?? null
+        : task.activeStepId;
+
+      return {
+        tasks: state.tasks.map((t) =>
+          t.id === taskId
+            ? {
+                ...t,
+                steps: ordered,
+                activeStepId: newActiveStepId,
+              }
+            : t
+        ),
+      };
+    }),
+
   saveSurvey: (taskId, input) =>
     set((state) => {
       const deltaEnergy = input.energyAfter - input.energyBefore;
@@ -438,6 +629,8 @@ export const useStore = create<AppState>((set, get) => ({
     }),
 
   closeSurvey: () => set({ showSurveyFor: null }),
+
+  triggerSurvey: (taskId) => set({ showSurveyFor: taskId }),
 
   deleteTask: (taskId) =>
     set((state) => {

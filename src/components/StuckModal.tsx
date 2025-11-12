@@ -28,21 +28,21 @@ export function StuckModal({ open, onOpenChange, onCommunity, onNudge, onReedit 
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3 py-2">
-          <Button onClick={onCommunity} className="w-full justify-start" variant="outline">
-            <div className="flex flex-col items-start">
-              <span className="font-semibold">Reach out to community</span>
+          <Button onClick={onCommunity} className="w-full justify-start !text-foreground" variant="outline">
+            <div className="flex flex-col items-start relative z-10">
+              <span className="font-semibold text-foreground">Reach out to community</span>
               <span className="text-sm text-muted-foreground">Open support spaces to share progress or ask for ideas</span>
             </div>
           </Button>
-          <Button onClick={onNudge} className="w-full justify-start" variant="outline">
-            <div className="flex flex-col items-start">
-              <span className="font-semibold">Add a 1 min nudge</span>
+          <Button onClick={onNudge} className="w-full justify-start !text-foreground" variant="outline">
+            <div className="flex flex-col items-start relative z-10">
+              <span className="font-semibold text-foreground">Add a 1 min nudge</span>
               <span className="text-sm text-muted-foreground">Queue a tiny rescue timer to ease back in</span>
             </div>
           </Button>
-          <Button onClick={onReedit} className="w-full justify-start" variant="outline">
-            <div className="flex flex-col items-start">
-              <span className="font-semibold">Re-edit task</span>
+          <Button onClick={onReedit} className="w-full justify-start !text-foreground" variant="outline">
+            <div className="flex flex-col items-start relative z-10">
+              <span className="font-semibold text-foreground">Re-edit task</span>
               <span className="text-sm text-muted-foreground">Jump to the breakdown editor to tweak steps</span>
             </div>
           </Button>

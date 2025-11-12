@@ -37,7 +37,7 @@ export default function CommunitiesPage() {
     <div className="mx-auto flex max-w-4xl flex-col gap-6 px-4 py-8">
       <Card>
         <CardHeader>
-          <div className="flex items-center gap-2 text-sm font-medium text-emerald-600">
+          <div className="flex items-center gap-2 text-sm font-medium text-teal-600 dark:text-teal-400">
             <HeartHandshake className="h-4 w-4" />
             Connect with ADHD support
           </div>
@@ -55,7 +55,7 @@ export default function CommunitiesPage() {
           return (
             <Card key={resource.title} className="border-muted">
               <CardHeader className="space-y-2">
-                <div className="flex items-center gap-2 text-emerald-600">
+                <div className="flex items-center gap-2 text-teal-600 dark:text-teal-400">
                   <Icon className="h-5 w-5" />
                   <span className="text-sm font-medium uppercase tracking-wide">Recommended</span>
                 </div>
