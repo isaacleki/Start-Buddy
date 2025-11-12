@@ -1,370 +1,471 @@
+'use client';
+
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
-import type { Task, Step, Session, Stats } from './schemas';
-import { generateId, calculateADS } from './utils';
+import { getSplitPair } from '@/lib/step-helpers';
 
-interface AppState {
-  // Data
-  tasks: Task[];
-  steps: Step[];
-  sessions: Session[];
-  stats: Stats[];
+export type StepStatus = 'todo' | 'doing' | 'done';
+export type Category = 'work' | 'personal' | 'hobby' | 'health';
 
-  // Current state
-  currentTaskId: string | undefined;
-  currentStepId: string | undefined;
-  currentSessionId: string | undefined;
-
-  // Task actions
-  addTask: (title: string, category?: string) => Task;
-  updateTask: (id: string, updates: Partial<Task>) => void;
-  deleteTask: (id: string) => void;
-  setCurrentTask: (id: string | undefined) => void;
-
-  // Step actions
-  addStep: (taskId: string, text: string, durationMin: 1 | 2, order?: number) => Step;
-  updateStep: (id: string, updates: Partial<Step>) => void;
-  deleteStep: (id: string) => void;
-  reorderSteps: (taskId: string, stepIds: string[]) => void;
-  setSteps: (taskId: string, steps: Array<{ text: string; duration_min: 1 | 2 }>) => void;
-  setCurrentStep: (id: string | undefined) => void;
-
-  // Session actions
-  startSession: (taskId: string, stepId: string, timerMin: number) => Session;
-  endSession: (sessionId: string, completed: boolean) => void;
-  updateSession: (id: string, updates: Partial<Session>) => void;
-  setCurrentSession: (id: string | undefined) => void;
-
-  // Stats actions
-  updateStats: (taskId: string, updates: Partial<Stats>) => void;
-  getStats: (taskId: string) => Stats | undefined;
-  recordTimeToStart: (taskId: string, ttsMs: number) => void;
-  incrementStuckCount: (taskId: string) => void;
-  incrementAbandonedCount: (taskId: string) => void;
-  incrementCarryovers: (taskId: string) => void;
-
-  // Utility actions
-  exportData: () => string;
-  deleteAllData: () => void;
-  getCurrentTask: () => Task | undefined;
-  getCurrentStep: () => Step | undefined;
-  getCurrentSession: () => Session | undefined;
-  getStepsForTask: (taskId: string) => Step[];
-  getNextStep: (taskId: string, currentStepId: string) => Step | undefined;
+export interface TaskStep {
+  id: string;
+  text: string;
+  duration_min: number;
+  status: StepStatus;
+  order: number;
 }
 
-const STORAGE_KEY = 'start-buddy-storage';
+export interface SurveyInput {
+  ease: number;
+  energyBefore: number;
+  energyAfter: number;
+  distractions: 'none' | 'some' | 'many';
+  note?: string;
+}
 
-export const useStore = create<AppState>()(
-  persist(
-    (set, get): AppState => ({
-      // Initial state
-      tasks: [],
-      steps: [],
-      sessions: [],
-      stats: [],
-      currentTaskId: undefined,
-      currentStepId: undefined,
-      currentSessionId: undefined,
+export interface SessionSummary {
+  ease: number;
+  energyBefore: number;
+  energyAfter: number;
+  deltaEnergy: number;
+  distractions: 'none' | 'some' | 'many';
+  feltEasy: boolean;
+  note?: string;
+}
 
-      // Task actions
-      addTask: (title, category) => {
-        const task: Task = {
-          id: generateId(),
-          title,
-          category,
-          status: 'pending',
-          created_at: Date.now(),
+interface AutoStartTimer {
+  minutes: number;
+  message?: string;
+}
+
+export interface Task {
+  id: string;
+  title: string;
+  category: Category;
+  steps: TaskStep[];
+  activeStepId: string | null;
+  streak: number;
+  lastEncouragement?: string;
+  summary?: SessionSummary;
+  createdAt: number;
+  completedAt?: number;
+}
+
+interface Templates {
+  id: string;
+  title: string;
+  category: Category;
+  steps: Array<{ text: string; duration_min: number }>;
+}
+
+const TASK_TEMPLATES: Templates[] = [
+  {
+    id: 'morning-prep',
+    title: 'Get ready for work',
+    category: 'personal',
+    steps: [
+      {
+        text: 'Open wardrobe & set out outfit (top/bottom/socks/underwear)',
+        duration_min: 2,
+      },
+      { text: 'Put on outfit (clothes only)', duration_min: 2 },
+      { text: 'Bathroom quick: brush teeth + face splash', duration_min: 2 },
+      { text: 'Pack essentials: phone/wallet/keys + ID/badge + water', duration_min: 2 },
+      { text: 'Shoes on, grab bag, lock door', duration_min: 2 },
+    ],
+  },
+];
+
+let idCounter = 0;
+const createId = (prefix: string) => `${prefix}-${++idCounter}`;
+
+function buildSteps(templateSteps: Templates['steps']): { steps: TaskStep[]; activeStepId: string | null } {
+  const steps = templateSteps.map((step, index) => {
+    const status: StepStatus = index === 0 ? 'doing' : 'todo';
+    return {
+      id: createId('step'),
+      text: step.text,
+      duration_min: step.duration_min,
+      status,
+      order: index,
+    };
+  });
+  return {
+    steps,
+    activeStepId: steps[0]?.id ?? null,
+  };
+}
+
+function pickEncouragement(completed: number, total: number): string {
+  if (completed === 0) {
+    return 'First step ready—let’s make it light and doable.';
+  }
+  if (completed >= total) {
+    return 'All steps wrapped up. Nicely done!';
+  }
+  const messages = [
+    'Nice momentum—keep it easy and steady.',
+    'Another micro-step in the win column.',
+    'Streak growing. Next move is ready when you are.',
+    'Progress feels good—enjoy the shift.',
+  ];
+  return messages[completed % messages.length];
+}
+
+interface AppState {
+  tasks: Task[];
+  activeTaskId: string | null;
+  lastCreatedTaskId: string | null;
+  autoStartTimer: AutoStartTimer | null;
+  showSurveyFor: string | null;
+  lastEncouragement: string;
+
+  createTaskFromTemplate: (templateId: string, overrides?: { title?: string; category?: Category }) => string;
+  setActiveTask: (taskId: string | null) => void;
+  markStepDone: () => void;
+  splitCurrentStep: (
+    parts?: [string, string],
+    options?: { autoStartMinutes?: number; message?: string }
+  ) => void;
+  insertHelperStep: (
+    helper: { text: string; duration_min: number },
+    options?: { autoStartMinutes?: number; message?: string }
+  ) => void;
+  triggerLowEnergy: (message?: string) => void;
+  acknowledgeAutoStart: () => void;
+  updateStepText: (taskId: string, stepId: string, text: string) => void;
+  updateStepDuration: (taskId: string, stepId: string, minutes: number) => void;
+  moveStep: (taskId: string, stepId: string, direction: 'up' | 'down') => void;
+  saveSurvey: (taskId: string, input: SurveyInput) => void;
+  closeSurvey: () => void;
+  deleteTask: (taskId: string) => void;
+  resetScenario: () => void;
+}
+
+const initialEncouragement = 'Ready when you are.';
+
+export const useStore = create<AppState>((set, get) => ({
+  tasks: [],
+  activeTaskId: null,
+  lastCreatedTaskId: null,
+  autoStartTimer: null,
+  showSurveyFor: null,
+  lastEncouragement: initialEncouragement,
+
+  createTaskFromTemplate: (templateId, overrides) => {
+    const template = TASK_TEMPLATES.find((t) => t.id === templateId) ?? TASK_TEMPLATES[0];
+    const { steps, activeStepId } = buildSteps(template.steps);
+    const title = overrides?.title?.trim() || template.title;
+    const category = overrides?.category ?? template.category;
+    const newTask: Task = {
+      id: createId('task'),
+      title,
+      category,
+      steps,
+      activeStepId,
+      streak: 0,
+      lastEncouragement: pickEncouragement(0, steps.length),
+      createdAt: Date.now(),
+    };
+    set((state) => ({
+      tasks: [...state.tasks, newTask],
+      activeTaskId: newTask.id,
+      lastCreatedTaskId: newTask.id,
+      lastEncouragement: newTask.lastEncouragement ?? initialEncouragement,
+      autoStartTimer: null,
+    }));
+    return newTask.id;
+  },
+
+  setActiveTask: (taskId) =>
+    set((state) => {
+      if (!taskId) {
+        return {
+          activeTaskId: null,
+          lastEncouragement: initialEncouragement,
         };
-        set((state) => ({
-          tasks: [...state.tasks, task],
-          currentTaskId: task.id,
-        }));
-        // Initialize stats
-        const stats: Stats = {
-          task_id: task.id,
-          stuck_count: 0,
-          abandoned_count: 0,
-          carryovers: 0,
-          ads_score: 0,
-        };
-        set((state) => ({
-          stats: [...state.stats, stats],
-        }));
-        return task;
-      },
-
-      updateTask: (id, updates) => {
-        set((state) => ({
-          tasks: state.tasks.map((task) =>
-            task.id === id ? { ...task, ...updates } : task
-          ),
-        }));
-      },
-
-      deleteTask: (id) => {
-        set((state) => ({
-          tasks: state.tasks.filter((task) => task.id !== id),
-          steps: state.steps.filter((step) => step.task_id !== id),
-          sessions: state.sessions.filter((session) => session.task_id !== id),
-          stats: state.stats.filter((stat) => stat.task_id !== id),
-          currentTaskId: state.currentTaskId === id ? undefined : state.currentTaskId,
-        }));
-      },
-
-      setCurrentTask: (id) => {
-        set({ currentTaskId: id });
-      },
-
-      // Step actions
-      addStep: (taskId, text, durationMin, order) => {
-        const existingSteps = get().getStepsForTask(taskId);
-        const stepOrder = order ?? existingSteps.length;
-        const step: Step = {
-          id: generateId(),
-          task_id: taskId,
-          text,
-          duration_min: durationMin,
-          status: 'pending',
-          order: stepOrder,
-        };
-        set((state) => ({
-          steps: [...state.steps, step],
-        }));
-        return step;
-      },
-
-      updateStep: (id, updates) => {
-        set((state) => ({
-          steps: state.steps.map((step) =>
-            step.id === id ? { ...step, ...updates } : step
-          ),
-        }));
-      },
-
-      deleteStep: (id) => {
-        set((state) => ({
-          steps: state.steps.filter((step) => step.id !== id),
-        }));
-      },
-
-      reorderSteps: (taskId, stepIds) => {
-        set((state) => {
-          const steps = state.steps
-            .filter((step) => step.task_id === taskId)
-            .map((step) => {
-              const newOrder = stepIds.indexOf(step.id);
-              return newOrder >= 0 ? { ...step, order: newOrder } : step;
-            });
-          const otherSteps = state.steps.filter((step) => step.task_id !== taskId);
-          return { steps: [...otherSteps, ...steps] };
-        });
-      },
-
-      setSteps: (taskId, stepData) => {
-        // Delete existing steps for this task
-        set((state) => {
-          const otherSteps = state.steps.filter((step) => step.task_id !== taskId);
-          const newSteps: Step[] = stepData.map((step, index) => ({
-            id: generateId(),
-            task_id: taskId,
-            text: step.text,
-            duration_min: step.duration_min,
-            status: 'pending',
-            order: index,
-          }));
-          return { steps: [...otherSteps, ...newSteps] };
-        });
-      },
-
-      setCurrentStep: (id) => {
-        set({ currentStepId: id });
-      },
-
-      // Session actions
-      startSession: (taskId, stepId, timerMin) => {
-        const session: Session = {
-          id: generateId(),
-          task_id: taskId,
-          step_id: stepId,
-          timer_min: timerMin,
-          started_at: Date.now(),
-          stuck_used: false,
-          completed: false,
-        };
-        set((state) => ({
-          sessions: [...state.sessions, session],
-          currentSessionId: session.id,
-        }));
-        // Update step status
-        get().updateStep(stepId, { status: 'in_progress' });
-        // Update task status
-        get().updateTask(taskId, { status: 'in_progress' });
-        return session;
-      },
-
-      endSession: (sessionId, completed) => {
-        set((state) => ({
-          sessions: state.sessions.map((session) =>
-            session.id === sessionId
-              ? { ...session, ended_at: Date.now(), completed }
-              : session
-          ),
-          currentSessionId: undefined,
-        }));
-        const session = get().sessions.find((s) => s.id === sessionId);
-        if (session) {
-          if (completed) {
-            get().updateStep(session.step_id, { status: 'completed' });
-          }
+      }
+      const task = state.tasks.find((t) => t.id === taskId);
+      if (!task) return state;
+      // Ensure one step is marked as doing
+      const nextSteps = task.steps.map((step) => ({ ...step }));
+      if (!nextSteps.some((step) => step.status === 'doing')) {
+        const nextIndex = nextSteps.findIndex((step) => step.status !== 'done');
+        if (nextIndex >= 0) {
+          nextSteps[nextIndex] = { ...nextSteps[nextIndex], status: 'doing' as StepStatus };
         }
-      },
-
-      updateSession: (id, updates) => {
-        set((state) => ({
-          sessions: state.sessions.map((session) =>
-            session.id === id ? { ...session, ...updates } : session
-          ),
-        }));
-      },
-
-      setCurrentSession: (id) => {
-        set({ currentSessionId: id });
-      },
-
-      // Stats actions
-      updateStats: (taskId, updates) => {
-        set((state) => {
-          const existingStats = state.stats.find((stat) => stat.task_id === taskId);
-          if (existingStats) {
-            const newStats = { ...existingStats, ...updates };
-            // Recalculate ADS score
-            newStats.ads_score = calculateADS(newStats);
-            return {
-              stats: state.stats.map((stat) =>
-                stat.task_id === taskId ? newStats : stat
-              ),
-            };
-          } else {
-            const newStats: Stats = {
-              task_id: taskId,
-              stuck_count: 0,
-              abandoned_count: 0,
-              carryovers: 0,
-              ads_score: 0,
-              ...updates,
-            };
-            newStats.ads_score = calculateADS(newStats);
-            return {
-              stats: [...state.stats, newStats],
-            };
-          }
-        });
-        // Also update task ADS score
-        const stats = get().getStats(taskId);
-        if (stats) {
-          get().updateTask(taskId, { ads_score: stats.ads_score });
-        }
-      },
-
-      getStats: (taskId) => {
-        return get().stats.find((stat) => stat.task_id === taskId);
-      },
-
-      recordTimeToStart: (taskId, ttsMs) => {
-        get().updateStats(taskId, { tts_ms: ttsMs });
-      },
-
-      incrementStuckCount: (taskId) => {
-        const stats = get().getStats(taskId);
-        get().updateStats(taskId, {
-          stuck_count: (stats?.stuck_count ?? 0) + 1,
-        });
-      },
-
-      incrementAbandonedCount: (taskId) => {
-        const stats = get().getStats(taskId);
-        get().updateStats(taskId, {
-          abandoned_count: (stats?.abandoned_count ?? 0) + 1,
-        });
-      },
-
-      incrementCarryovers: (taskId) => {
-        const stats = get().getStats(taskId);
-        get().updateStats(taskId, {
-          carryovers: (stats?.carryovers ?? 0) + 1,
-        });
-      },
-
-      // Utility actions
-      exportData: () => {
-        const state = get();
-        return JSON.stringify(
-          {
-            tasks: state.tasks,
-            steps: state.steps,
-            sessions: state.sessions,
-            stats: state.stats,
-          },
-          null,
-          2
-        );
-      },
-
-      deleteAllData: () => {
-        set({
-          tasks: [],
-          steps: [],
-          sessions: [],
-          stats: [],
-          currentTaskId: undefined,
-          currentStepId: undefined,
-          currentSessionId: undefined,
-        });
-        localStorage.removeItem(STORAGE_KEY);
-      },
-
-      getCurrentTask: () => {
-        const { currentTaskId, tasks } = get();
-        return currentTaskId ? tasks.find((t) => t.id === currentTaskId) : undefined;
-      },
-
-      getCurrentStep: () => {
-        const { currentStepId, steps } = get();
-        return currentStepId ? steps.find((s) => s.id === currentStepId) : undefined;
-      },
-
-      getCurrentSession: () => {
-        const { currentSessionId, sessions } = get();
-        return currentSessionId
-          ? sessions.find((s) => s.id === currentSessionId)
-          : undefined;
-      },
-
-      getStepsForTask: (taskId) => {
-        return get()
-          .steps.filter((step) => step.task_id === taskId)
-          .sort((a, b) => a.order - b.order);
-      },
-
-      getNextStep: (taskId, currentStepId) => {
-        const steps = get().getStepsForTask(taskId);
-        const currentIndex = steps.findIndex((s) => s.id === currentStepId);
-        return steps[currentIndex + 1];
-      },
+      }
+      const updatedTask: Task = {
+        ...task,
+        steps: nextSteps.map((step, order) => ({ ...step, order })),
+        activeStepId: nextSteps.find((step) => step.status === 'doing')?.id ?? null,
+      };
+      return {
+        tasks: state.tasks.map((t) => (t.id === taskId ? updatedTask : t)),
+        activeTaskId: taskId,
+        autoStartTimer: null,
+        lastEncouragement: updatedTask.lastEncouragement ?? state.lastEncouragement,
+      };
     }),
-    {
-      name: STORAGE_KEY,
-      partialize: (state) => ({
-        tasks: state.tasks,
-        steps: state.steps,
-        sessions: state.sessions,
-        stats: state.stats,
-        currentTaskId: state.currentTaskId,
-        currentStepId: state.currentStepId,
-        currentSessionId: state.currentSessionId,
-      }),
-    }
-  )
-);
+
+  markStepDone: () =>
+    set((state) => {
+      const { activeTaskId } = state;
+      if (!activeTaskId) return state;
+      const task = state.tasks.find((t) => t.id === activeTaskId);
+      if (!task || !task.activeStepId) return state;
+
+      const steps = task.steps.map((step) => ({ ...step }));
+      const index = steps.findIndex((step) => step.id === task.activeStepId);
+      if (index === -1) return state;
+      steps[index].status = 'done' as StepStatus;
+
+      let nextActive: string | null = null;
+      for (let i = index + 1; i < steps.length; i += 1) {
+        if (steps[i].status !== 'done') {
+          steps[i] = { ...steps[i], status: 'doing' as StepStatus };
+          nextActive = steps[i].id;
+          break;
+        }
+      }
+
+      const completedCount = steps.filter((step) => step.status === 'done').length;
+      const allDone = completedCount === steps.length;
+      const encouragement = allDone
+        ? '🎉 Full sequence complete! Take a breath and celebrate the win.'
+        : pickEncouragement(completedCount, steps.length);
+      const streak = task.streak + 1;
+
+      return {
+        tasks: state.tasks.map((t) =>
+          t.id === activeTaskId
+            ? {
+                ...t,
+                steps: steps.map((step, order) => ({ ...step, order })),
+                activeStepId: nextActive,
+                streak,
+                lastEncouragement: encouragement,
+                completedAt: allDone ? Date.now() : t.completedAt,
+              }
+            : t
+        ),
+        showSurveyFor: allDone ? activeTaskId : state.showSurveyFor,
+        activeTaskId: allDone ? activeTaskId : state.activeTaskId,
+        lastEncouragement: encouragement,
+        autoStartTimer: null,
+      };
+    }),
+
+  splitCurrentStep: (parts, options) =>
+    set((state) => {
+      const task = state.tasks.find((t) => t.id === state.activeTaskId);
+      if (!task || !task.activeStepId) return state;
+      const steps = [...task.steps];
+      const index = steps.findIndex((step) => step.id === task.activeStepId);
+      if (index === -1) return state;
+
+      const [first, second] = parts ?? getSplitPair(steps[index].text);
+      const created: TaskStep[] = [
+        {
+          id: createId('step'),
+          text: first,
+          duration_min: 1,
+          status: 'doing' as StepStatus,
+          order: 0,
+        },
+        {
+          id: createId('step'),
+          text: second,
+          duration_min: 1,
+          status: 'todo' as StepStatus,
+          order: 0,
+        },
+      ];
+      const merged = [
+        ...steps.slice(0, index),
+        ...created,
+        ...steps.slice(index + 1).map((step) => ({
+          ...step,
+          status: step.status === 'done' ? ('done' as StepStatus) : ('todo' as StepStatus),
+        })),
+      ].map((step, order) => ({
+        ...step,
+        order,
+      }));
+
+      const encouragement = 'Split applied—micro-actions unlocked.';
+
+      return {
+        tasks: state.tasks.map((t) =>
+          t.id === task.id
+            ? {
+                ...t,
+                steps: merged,
+                activeStepId: created[0].id,
+                lastEncouragement: encouragement,
+              }
+            : t
+        ),
+        autoStartTimer: options?.autoStartMinutes
+          ? { minutes: options.autoStartMinutes, message: options.message }
+          : null,
+        lastEncouragement: encouragement,
+      };
+    }),
+
+  insertHelperStep: (helper, options) =>
+    set((state) => {
+      const task = state.tasks.find((t) => t.id === state.activeTaskId);
+      if (!task || !task.activeStepId) return state;
+      const steps = [...task.steps];
+      const index = steps.findIndex((step) => step.id === task.activeStepId);
+      if (index === -1) return state;
+
+      const helperStep: TaskStep = {
+        id: createId('step'),
+        text: helper.text,
+        duration_min: helper.duration_min,
+        status: 'doing' as StepStatus,
+        order: 0,
+      };
+      const currentAsTodo: TaskStep = { ...steps[index], status: 'todo' as StepStatus };
+      const merged = [
+        ...steps.slice(0, index),
+        helperStep,
+        currentAsTodo,
+        ...steps.slice(index + 1).map((step) => ({
+          ...step,
+          status: step.status === 'done' ? ('done' as StepStatus) : step.status,
+        })),
+      ].map((step, order) => ({ ...step, order }));
+
+      const encouragement = 'Helper step inserted—guided search ready.';
+
+      return {
+        tasks: state.tasks.map((t) =>
+          t.id === task.id
+            ? {
+                ...t,
+                steps: merged,
+                activeStepId: helperStep.id,
+                lastEncouragement: encouragement,
+              }
+            : t
+        ),
+        autoStartTimer: options?.autoStartMinutes
+          ? { minutes: options.autoStartMinutes, message: options.message }
+          : null,
+        lastEncouragement: encouragement,
+      };
+    }),
+
+  triggerLowEnergy: (message) =>
+    set({
+      autoStartTimer: { minutes: 2, message: message ?? 'Starting a steady 2-minute rescue.' },
+      lastEncouragement: 'Gentle nudge en route—keep it light.',
+    }),
+
+  acknowledgeAutoStart: () => set({ autoStartTimer: null }),
+
+  updateStepText: (taskId, stepId, text) =>
+    set((state) => ({
+      tasks: state.tasks.map((task) =>
+        task.id === taskId
+          ? {
+              ...task,
+              steps: task.steps.map((step) => (step.id === stepId ? { ...step, text } : step)),
+            }
+          : task
+      ),
+    })),
+
+  updateStepDuration: (taskId, stepId, minutes) =>
+    set((state) => ({
+      tasks: state.tasks.map((task) =>
+        task.id === taskId
+          ? {
+              ...task,
+              steps: task.steps.map((step) =>
+                step.id === stepId ? { ...step, duration_min: Math.max(1, Math.round(minutes)) } : step
+              ),
+            }
+          : task
+      ),
+    })),
+
+  moveStep: (taskId, stepId, direction) =>
+    set((state) => {
+      const task = state.tasks.find((t) => t.id === taskId);
+      if (!task) return state;
+      const steps = [...task.steps];
+      const index = steps.findIndex((step) => step.id === stepId);
+      if (index === -1) return state;
+      const swapWith = direction === 'up' ? index - 1 : index + 1;
+      if (swapWith < 0 || swapWith >= steps.length) return state;
+      [steps[index], steps[swapWith]] = [steps[swapWith], steps[index]];
+      const ordered = steps.map((step, order) => ({ ...step, order }));
+      return {
+        tasks: state.tasks.map((t) => (t.id === taskId ? { ...t, steps: ordered } : t)),
+      };
+    }),
+
+  saveSurvey: (taskId, input) =>
+    set((state) => {
+      const deltaEnergy = input.energyAfter - input.energyBefore;
+      const summary: SessionSummary = {
+        ease: input.ease,
+        energyBefore: input.energyBefore,
+        energyAfter: input.energyAfter,
+        deltaEnergy,
+        distractions: input.distractions,
+        feltEasy: input.ease >= 4,
+        note: input.note,
+      };
+      return {
+        tasks: state.tasks.map((task) =>
+          task.id === taskId
+            ? {
+                ...task,
+                summary,
+                completedAt: task.completedAt ?? Date.now(),
+                activeStepId: null,
+              }
+            : task
+        ),
+        showSurveyFor: null,
+        activeTaskId: state.activeTaskId === taskId ? null : state.activeTaskId,
+        lastEncouragement: 'Reflection captured—nice follow-through.',
+      };
+    }),
+
+  closeSurvey: () => set({ showSurveyFor: null }),
+
+  deleteTask: (taskId) =>
+    set((state) => {
+      const remaining = state.tasks.filter((task) => task.id !== taskId);
+      const activeTaskId = state.activeTaskId === taskId ? null : state.activeTaskId;
+      const lastCreatedTaskId = state.lastCreatedTaskId === taskId ? (remaining.at(-1)?.id ?? null) : state.lastCreatedTaskId;
+      return {
+        tasks: remaining,
+        activeTaskId,
+        lastCreatedTaskId,
+        showSurveyFor: state.showSurveyFor === taskId ? null : state.showSurveyFor,
+        lastEncouragement: activeTaskId
+          ? state.tasks.find((t) => t.id === activeTaskId)?.lastEncouragement ?? initialEncouragement
+          : initialEncouragement,
+      };
+    }),
+
+  resetScenario: () =>
+    set(() => {
+      idCounter = 0;
+      return {
+        tasks: [],
+        activeTaskId: null,
+        lastCreatedTaskId: null,
+        autoStartTimer: null,
+        showSurveyFor: null,
+        lastEncouragement: initialEncouragement,
+      };
+    }),
+}));
 

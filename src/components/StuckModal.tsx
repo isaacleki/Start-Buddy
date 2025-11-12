@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -9,138 +8,43 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { useStore } from '@/lib/store';
-import { calmCopy } from '@/lib/calm-copy';
-import { getUniversalTemplateSteps } from '@/lib/utils';
-import { Loader2 } from 'lucide-react';
 
 interface StuckModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  taskId: string;
-  stepId: string;
-  onBackToSession: () => void;
+  onCommunity: () => void;
+  onNudge: () => void;
+  onReedit: () => void;
 }
 
-export function StuckModal({
-  open,
-  onOpenChange,
-  taskId,
-  stepId,
-  onBackToSession,
-}: StuckModalProps) {
-  const [loading, setLoading] = useState(false);
-  const step = useStore((state) => state.steps.find((s) => s.id === stepId));
-  const task = useStore((state) => state.tasks.find((t) => t.id === taskId));
-  const addStep = useStore((state) => state.addStep);
-  const setSteps = useStore((state) => state.setSteps);
-  const incrementStuckCount = useStore((state) => state.incrementStuckCount);
-  const getStepsForTask = useStore((state) => state.getStepsForTask);
-
-  const handleTooBig = async () => {
-    setLoading(true);
-    incrementStuckCount(taskId);
-
-    try {
-      // Split the current step into smaller micro-steps
-      const microSteps = [
-        {
-          text: `Break down: ${step?.text || 'this step'}`,
-          duration_min: 2 as const,
-        },
-        {
-          text: 'Start with the first tiny piece',
-          duration_min: 2 as const,
-        },
-        {
-          text: 'Continue with the next piece',
-          duration_min: 2 as const,
-        },
-      ];
-
-      // Add new micro-steps
-      const existingSteps = getStepsForTask(taskId);
-      const currentStepIndex = existingSteps.findIndex((s) => s.id === stepId);
-      const newSteps = microSteps.map((microStep, index) =>
-        addStep(taskId, microStep.text, microStep.duration_min, currentStepIndex + index + 1)
-      );
-
-      // Set the first new step as current
-      if (newSteps[0]) {
-        useStore.getState().setCurrentStep(newSteps[0].id);
-      }
-
-      onOpenChange(false);
-      onBackToSession();
-    } catch (error) {
-      console.error('Error splitting step:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleLowEnergy = async () => {
-    setLoading(true);
-    incrementStuckCount(taskId);
-
-    try {
-      // Create a 2-minute rescue step at the beginning
-      const rescueStep = addStep(
-        taskId,
-        `2-minute rescue: ${step?.text || 'quick start'}`,
-        2,
-        0
-      );
-
-      // Set the rescue step as current
-      useStore.getState().setCurrentStep(rescueStep.id);
-
-      onOpenChange(false);
-      onBackToSession();
-    } catch (error) {
-      console.error('Error creating rescue step:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+export function StuckModal({ open, onOpenChange, onCommunity, onNudge, onReedit }: StuckModalProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{calmCopy.stuck.title}</DialogTitle>
+          <DialogTitle>I’m stuck</DialogTitle>
           <DialogDescription>
-            What&apos;s getting in the way?
+            Pick a quick assist to keep momentum gentle and supportive.
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4 py-4">
-          <Button
-            onClick={handleTooBig}
-            disabled={loading}
-            className="w-full h-20 text-left justify-start"
-            variant="outline"
-          >
+        <div className="space-y-3 py-2">
+          <Button onClick={onCommunity} className="w-full justify-start" variant="outline">
             <div className="flex flex-col items-start">
-              <span className="font-semibold">{calmCopy.stuck.tooBig}</span>
-              <span className="text-sm text-muted-foreground">
-                Break this into smaller steps
-              </span>
+              <span className="font-semibold">Reach out to community</span>
+              <span className="text-sm text-muted-foreground">Open support spaces to share progress or ask for ideas</span>
             </div>
-            {loading && <Loader2 className="h-4 w-4 ml-auto animate-spin" />}
           </Button>
-          <Button
-            onClick={handleLowEnergy}
-            disabled={loading}
-            className="w-full h-20 text-left justify-start"
-            variant="outline"
-          >
+          <Button onClick={onNudge} className="w-full justify-start" variant="outline">
             <div className="flex flex-col items-start">
-              <span className="font-semibold">{calmCopy.stuck.lowEnergy}</span>
-              <span className="text-sm text-muted-foreground">
-                Start with a 2-minute rescue step
-              </span>
+              <span className="font-semibold">Add a 1 min nudge</span>
+              <span className="text-sm text-muted-foreground">Queue a tiny rescue timer to ease back in</span>
             </div>
-            {loading && <Loader2 className="h-4 w-4 ml-auto animate-spin" />}
+          </Button>
+          <Button onClick={onReedit} className="w-full justify-start" variant="outline">
+            <div className="flex flex-col items-start">
+              <span className="font-semibold">Re-edit task</span>
+              <span className="text-sm text-muted-foreground">Jump to the breakdown editor to tweak steps</span>
+            </div>
           </Button>
         </div>
       </DialogContent>

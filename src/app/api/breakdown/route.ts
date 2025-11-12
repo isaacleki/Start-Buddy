@@ -2,15 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { BreakdownResponseSchema } from '@/lib/schemas';
 import { getUniversalTemplateSteps } from '@/lib/utils';
 
-// Lazy load OpenAI to avoid issues during build
-let openai: any = null;
-if (process.env.OPENAI_API_KEY) {
-  import('openai').then((module) => {
-    const OpenAI = module.default;
-    openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
+let openaiPromise: Promise<any> | null = null;
+function getOpenAIClient() {
+  if (!process.env.OPENAI_API_KEY) return null;
+  if (!openaiPromise) {
+    openaiPromise = import('openai').then((module) => {
+      const OpenAI = module.default;
+      return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     });
-  });
+  }
+  return openaiPromise;
 }
 
 // Rate limiting (simple in-memory store for MVP)
@@ -72,7 +73,8 @@ export async function POST(request: NextRequest) {
     }
 
     // If no API key, use fallback
-    if (!process.env.OPENAI_API_KEY || !openai) {
+    const openai = await getOpenAIClient();
+    if (!openai) {
       const fallbackSteps = getUniversalTemplateSteps(taskTitle);
       return NextResponse.json({
         steps: fallbackSteps,
@@ -81,14 +83,6 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      // Dynamically import OpenAI if not already loaded
-      if (!openai) {
-        const OpenAI = (await import('openai')).default;
-        openai = new OpenAI({
-          apiKey: process.env.OPENAI_API_KEY,
-        });
-      }
-
       // Call OpenAI API
       const completion = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
