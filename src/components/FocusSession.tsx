@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -12,12 +13,16 @@ import { CircularProgress } from './CircularProgress';
 import { TaskSurveyDialog } from './TaskSurveyDialog';
 
 export function FocusSession() {
+  const router = useRouter();
   const tasks = useStore((state) => state.tasks);
   const activeTaskId = useStore((state) => state.activeTaskId);
   const markStepDone = useStore((state) => state.markStepDone);
   const triggerLowEnergy = useStore((state) => state.triggerLowEnergy);
   const splitCurrentStep = useStore((state) => state.splitCurrentStep);
   const insertHelperStep = useStore((state) => state.insertHelperStep);
+  const addStep = useStore((state) => state.addStep);
+  const updateStepText = useStore((state) => state.updateStepText);
+  const updateStepDuration = useStore((state) => state.updateStepDuration);
   const autoStart = useStore((state) => state.autoStartTimer);
   const acknowledgeAutoStart = useStore((state) => state.acknowledgeAutoStart);
   const lastEncouragement = useStore((state) => state.lastEncouragement);
@@ -353,10 +358,16 @@ export function FocusSession() {
         onOpenChange={setStuckOpen}
         onCommunity={() => {
           setStuckOpen(false);
-          window.open('https://discord.gg/focus-friends', '_blank');
+          router.push('/communities');
         }}
         onNudge={() => {
-          handleLowEnergy();
+          if (activeTaskId && currentStep) {
+            const newStepId = addStep(activeTaskId, currentStep.id);
+            if (newStepId) {
+              updateStepText(activeTaskId, newStepId, 'Take a 1-minute break to reset');
+              updateStepDuration(activeTaskId, newStepId, 1);
+            }
+          }
           setStuckOpen(false);
         }}
         onReedit={() => {

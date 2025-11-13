@@ -30,8 +30,8 @@ export function StuckModal({ open, onOpenChange, onCommunity, onNudge, onReedit 
         <div className="space-y-3 py-2">
           <Button onClick={onCommunity} className="w-full justify-start !text-foreground" variant="outline">
             <div className="flex flex-col items-start relative z-10">
-              <span className="font-semibold text-foreground">Reach out to community</span>
-              <span className="text-sm text-muted-foreground">Open support spaces to share progress or ask for ideas</span>
+              <span className="font-semibold text-foreground">Chat with community</span>
+              <span className="text-sm text-muted-foreground">Connect with others for support and ideas</span>
             </div>
           </Button>
           <Button onClick={onNudge} className="w-full justify-start !text-foreground" variant="outline">

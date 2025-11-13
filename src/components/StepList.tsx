@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -47,27 +48,50 @@ export function StepList({ editable = false }: StepListProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-lg">{editable ? 'AI-generated breakdown' : 'Steps'}</CardTitle>
-        <p className="text-sm text-muted-foreground">
-          {editable
-            ? 'Tweak copy, durations, or order before you lock in the session.'
-            : lastEncouragement || 'Micro-steps keep it light. Adjust anytime.'}
-        </p>
+        <motion.div
+          key={editable ? 'ai-generated' : 'steps'}
+          initial={{ opacity: 0, y: -5 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+        >
+          <CardTitle className="text-lg">{editable ? 'AI-generated breakdown' : 'Steps'}</CardTitle>
+          <motion.p
+            key={editable ? 'editable-desc' : 'default-desc'}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.1, duration: 0.3 }}
+            className="text-sm text-muted-foreground"
+          >
+            {editable
+              ? 'Tweak copy, durations, or order before you lock in the session.'
+              : lastEncouragement || 'Micro-steps keep it light. Adjust anytime.'}
+          </motion.p>
+        </motion.div>
       </CardHeader>
       <CardContent className="space-y-3">
         {steps.length === 0 && (
           <p className="text-sm text-muted-foreground">No steps available yet.</p>
         )}
-        {steps.map((step, index) => {
-          const status = statusCopy[step.status];
-          const canMoveUp = index > 0;
-          const canMoveDown = index < steps.length - 1;
+        <AnimatePresence mode="popLayout">
+          {steps.map((step, index) => {
+            const status = statusCopy[step.status];
+            const canMoveUp = index > 0;
+            const canMoveDown = index < steps.length - 1;
 
-          return (
-            <div
-              key={step.id}
-              className="space-y-2 rounded-md border bg-card px-4 py-3"
-            >
+            return (
+              <motion.div
+                key={step.id}
+                initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, x: -20, scale: 0.95 }}
+                transition={{
+                  type: 'spring',
+                  stiffness: 300,
+                  damping: 25,
+                  delay: editable ? index * 0.1 : 0,
+                }}
+                className="space-y-2 rounded-md border bg-card px-4 py-3"
+              >
               <div className="flex items-center justify-between text-xs uppercase tracking-wide text-muted-foreground">
                 <span>
                   Step {index + 1}
@@ -136,18 +160,25 @@ export function StepList({ editable = false }: StepListProps) {
                 )}
                 <span className={status.className}>{status.label}</span>
               </div>
-            </div>
+            </motion.div>
           );
         })}
+        </AnimatePresence>
         {editable && (
-          <Button
-            variant="outline"
-            className="w-full"
-            onClick={() => addStep(activeTask!.id)}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: steps.length * 0.1 + 0.2 }}
           >
-            <Plus className="h-4 w-4 mr-2" />
-            Add step
-          </Button>
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => addStep(activeTask!.id)}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add step
+            </Button>
+          </motion.div>
         )}
         {steps.length > 0 && !editable && (
           <p className="text-xs text-muted-foreground">
