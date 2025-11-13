@@ -136,7 +136,7 @@ interface AppState {
   updateStepText: (taskId: string, stepId: string, text: string) => void;
   updateStepDuration: (taskId: string, stepId: string, minutes: number) => void;
   moveStep: (taskId: string, stepId: string, direction: 'up' | 'down') => void;
-  addStep: (taskId: string, afterStepId?: string) => void;
+  addStep: (taskId: string, afterStepId?: string) => string | null;
   deleteStep: (taskId: string, stepId: string) => void;
   saveSurvey: (taskId: string, input: SurveyInput) => void;
   closeSurvey: () => void;
@@ -180,13 +180,13 @@ function createMockCompletedTasks(): Task[] {
     },
     {
       id: 'mock-2',
-      title: 'Organize workspace',
+      title: 'Respond to work email',
       category: 'work',
       steps: [
-        { id: 's5', text: 'Clear desk surface', duration_min: 5, status: 'done' as StepStatus, order: 0 },
-        { id: 's6', text: 'Sort papers into folders', duration_min: 10, status: 'done' as StepStatus, order: 1 },
-        { id: 's7', text: 'Organize cables and chargers', duration_min: 5, status: 'done' as StepStatus, order: 2 },
-        { id: 's8', text: 'Set up desk organizer', duration_min: 8, status: 'done' as StepStatus, order: 3 },
+        { id: 's5', text: 'Open email inbox', duration_min: 1, status: 'done' as StepStatus, order: 0 },
+        { id: 's6', text: 'Read and prioritize emails', duration_min: 5, status: 'done' as StepStatus, order: 1 },
+        { id: 's7', text: 'Draft responses to urgent emails', duration_min: 10, status: 'done' as StepStatus, order: 2 },
+        { id: 's8', text: 'Review and send responses', duration_min: 5, status: 'done' as StepStatus, order: 3 },
       ],
       activeStepId: null,
       streak: 1,
@@ -197,10 +197,10 @@ function createMockCompletedTasks(): Task[] {
         deltaEnergy: 1,
         distractions: 'none',
         feltEasy: false,
-        note: 'Took longer than expected but worth it',
+        note: 'Got through the inbox efficiently',
       },
       createdAt: threeDaysAgo,
-      completedAt: threeDaysAgo + 30 * 60 * 1000,
+      completedAt: threeDaysAgo + 25 * 60 * 1000,
     },
     {
       id: 'mock-3',
@@ -573,35 +573,35 @@ export const useStore = create<AppState>((set, get) => ({
       };
     }),
 
-  addStep: (taskId, afterStepId) =>
-    set((state) => {
-      const task = state.tasks.find((t) => t.id === taskId);
-      if (!task) return state;
-      const steps = [...task.steps];
-      const newStep: TaskStep = {
-        id: createId('step'),
-        text: 'New step',
-        duration_min: 2,
-        status: 'todo' as StepStatus,
-        order: 0,
-      };
+  addStep: (taskId, afterStepId) => {
+    const task = get().tasks.find((t) => t.id === taskId);
+    if (!task) return null;
+    const steps = [...task.steps];
+    const newStep: TaskStep = {
+      id: createId('step'),
+      text: 'New step',
+      duration_min: 1,
+      status: 'todo' as StepStatus,
+      order: 0,
+    };
 
-      if (afterStepId) {
-        const insertIndex = steps.findIndex((step) => step.id === afterStepId);
-        if (insertIndex !== -1) {
-          steps.splice(insertIndex + 1, 0, newStep);
-        } else {
-          steps.push(newStep);
-        }
+    if (afterStepId) {
+      const insertIndex = steps.findIndex((step) => step.id === afterStepId);
+      if (insertIndex !== -1) {
+        steps.splice(insertIndex + 1, 0, newStep);
       } else {
         steps.push(newStep);
       }
+    } else {
+      steps.push(newStep);
+    }
 
-      const ordered = steps.map((step, order) => ({ ...step, order }));
-      return {
-        tasks: state.tasks.map((t) => (t.id === taskId ? { ...t, steps: ordered } : t)),
-      };
-    }),
+    const ordered = steps.map((step, order) => ({ ...step, order }));
+    set({
+      tasks: get().tasks.map((t) => (t.id === taskId ? { ...t, steps: ordered } : t)),
+    });
+    return newStep.id;
+  },
 
   deleteStep: (taskId, stepId) =>
     set((state) => {
