@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Task Celebration</title>
+  <style>
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: linear-gradient(135deg, #74ebd5, #ACB6E5);
+      color: #fff;
+      text-align: center;
+      height: 100vh;
+      margin: 0;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+    }
+
+    h1 {
+      font-size: 2.3rem;
+      margin-bottom: 20px;
+      min-height: 70px;
+      white-space: pre-wrap;
+    }
+
+    p {
+      font-size: 1.2rem;
+      margin-bottom: 25px;
+      opacity: 0.9;
+    }
+
+    button {
+      background-color: #fff;
+      color: #333;
+      border: none;
+      padding: 12px 25px;
+      font-size: 1rem;
+      border-radius: 10px;
+      cursor: pointer;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+      transition: all 0.3s ease;
+      margin: 5px;
+    }
+
+    button:hover {
+      background-color: #f1c40f;
+      color: #222;
+      transform: scale(1.1);
+    }
+
+    @keyframes float {
+      0% { transform: translateY(100vh) scale(1); opacity: 1; }
+      100% { transform: translateY(-110vh) scale(1.2); opacity: 0; }
+    }
+
+    .balloon {
+      position: absolute;
+      bottom: -150px;
+      width: 50px;
+      height: 70px;
+      border-radius: 50%;
+      opacity: 0.9;
+      animation: float 6s linear infinite;
+      cursor: pointer;
+    }
+
+    .pop {
+      animation: popEffect 0.3s ease forwards;
+    }
+
+    @keyframes popEffect {
+      0% { transform: scale(1); opacity: 1; }
+      100% { transform: scale(2); opacity: 0; }
+    }
+
+    canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="confetti"></canvas>
+
+  <h1 id="affirmation">🎉 You Did It! 🎉</h1>
+  <p>All your tasks are complete — time to celebrate!</p>
+  <div>
+    <button onclick="replayCelebration()">Replay Celebration 🔁</button>
+    <button onclick="window.location.reload()">Add More Tasks ➕</button>
+  </div>
+
+  <!-- Sound effects -->
+  <audio id="successSound" src="https://cdn.pixabay.com/audio/2022/03/15/audio_2a8e46c0a1.mp3" preload="auto"></audio>
+  <audio id="popSound" src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_1f1ee5b2a1.mp3?filename=pop-124471.mp3" preload="auto"></audio>
+
+  <script>
+    const affirmations = [
+      "🎉 Great job! You’ve completed all your tasks!",
+      "💪 You’re unstoppable today!",
+      "🌟 Amazing work — you nailed it!",
+      "👏 Keep shining, superstar!",
+      "🔥 You crushed it — way to go!",
+      "🌈 Everything you do matters — well done!",
+      "💖 You’re making awesome progress!",
+      "🎯 Mission accomplished! Excellent focus!",
+      "🦋 You did it beautifully — keep going!",
+      "🌞 You’re getting better every day!"
+    ];
+
+    const affirmationEl = document.getElementById('affirmation');
+    const popSound = document.getElementById('popSound');
+    const successSound = document.getElementById('successSound');
+    const canvas = document.getElementById('confetti');
+    const ctx = canvas.getContext('2d');
+    let confettiPieces = [];
+
+    let index = 0, charIndex = 0;
+    let confettiAnimation;
+    let balloonInterval;
+
+    function typeAffirmation() {
+      if (charIndex < affirmations[index].length) {
+        affirmationEl.textContent += affirmations[index].charAt(charIndex);
+        charIndex++;
+        setTimeout(typeAffirmation, 70);
+      } else {
+        setTimeout(nextAffirmation, 2500);
+      }
+    }
+
+    function nextAffirmation() {
+      affirmationEl.textContent = "";
+      index = (index + 1) % affirmations.length;
+      charIndex = 0;
+      typeAffirmation();
+    }
+
+    function initConfetti() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      confettiPieces = Array.from({ length: 150 }, () => ({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height - canvas.height,
+        size: Math.random() * 8 + 2,
+        color: `hsl(${Math.random() * 360}, 100%, 70%)`,
+        speed: Math.random() * 3 + 2
+      }));
+    }
+
+    function drawConfetti() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      confettiPieces.forEach(c => {
+        ctx.fillStyle = c.color;
+        ctx.fillRect(c.x, c.y, c.size, c.size);
+        c.y += c.speed;
+        if (c.y > canvas.height) c.y = -10;
+      });
+      confettiAnimation = requestAnimationFrame(drawConfetti);
+    }
+
+    function createBalloon() {
+      const balloon = document.createElement('div');
+      balloon.classList.add('balloon');
+      const colors = ['#ff7675', '#55efc4', '#74b9ff', '#ffeaa7', '#fd79a8', '#a29bfe'];
+      balloon.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+      balloon.style.left = Math.random() * 100 + 'vw';
+      balloon.style.animationDuration = (Math.random() * 3 + 5) + 's';
+
+      balloon.addEventListener('click', () => {
+        popSound.currentTime = 0;
+        popSound.play();
+        balloon.classList.add('pop');
+        setTimeout(() => balloon.remove(), 300);
+      });
+
+      document.body.appendChild(balloon);
+      setTimeout(() => balloon.remove(), 8000);
+    }
+
+    function startBalloons() {
+      balloonInterval = setInterval(createBalloon, 600);
+    }
+
+    function stopBalloons() {
+      clearInterval(balloonInterval);
+      document.querySelectorAll('.balloon').forEach(b => b.remove());
+    }
+
+    function replayCelebration() {
+      successSound.currentTime = 0;
+      successSound.play();
+      stopBalloons();
+      cancelAnimationFrame(confettiAnimation);
+      initConfetti();
+      drawConfetti();
+      startBalloons();
+      affirmationEl.textContent = "";
+      index = 0; charIndex = 0;
+      typeAffirmation();
+    }
+
+    window.onload = () => {
+      initConfetti();
+      drawConfetti();
+      startBalloons();
+      successSound.play().catch(() => {});
+      typeAffirmation();
+    };
+  </script>
+</body>
+</html>
