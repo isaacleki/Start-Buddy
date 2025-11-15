@@ -36,7 +36,9 @@ export default function ChatPage() {
       }
     } catch {}
   }, []);
+
   const [input, setInput] = useState('');
+  const [inFlight, setInFlight] = useState(false); // prevent overlapping sends
   const listRef = useRef<HTMLDivElement | null>(null);
 
   // store method to create tasks from chat-generated steps
@@ -79,7 +81,7 @@ export default function ChatPage() {
     if (steps.length === 0) {
       steps.push({ text: lastBot.text.slice(0, 180), duration_min: 2 });
     }
-    const taskId = createTaskFromSteps(taskTitleInput || 'New task', taskCategory, steps);
+    createTaskFromSteps(taskTitleInput || 'New task', taskCategory, steps);
     const confirmMsg: Message = { id: `b-${Date.now()}`, role: 'bot', text: `Saved as a task — created "${taskTitleInput}".` };
     setMessages((m) => [...m, confirmMsg]);
     setShowSavePanel(false);
@@ -92,9 +94,11 @@ export default function ChatPage() {
     }
   }, [messages]);
 
-  const sendMessage = (text?: string) => {
+  const sendMessage = async (text?: string) => {
     const body = (text ?? input).trim();
-    if (!body) return;
+    if (!body || inFlight) return;
+
+    setInFlight(true);
 
     const userMsg: Message = { id: `u-${Date.now()}`, role: 'user', text: body };
     // append the user's message locally
@@ -112,39 +116,38 @@ export default function ChatPage() {
     const clean = current.filter((m) => !m.id.startsWith('loading-'));
     const history = clean.slice(-20); // keep up to last 20 messages for context
 
-  // Send recent client-side history (helps continuity if server-side assistant replies haven't been persisted yet)
-  const clientHistory = history.map((m) => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.text, }));
-  const payload = { messages: clientHistory, sessionId: sessionIdRef.current };
+    // Send recent client-side history (helps continuity if server-side assistant replies haven't been persisted yet)
+    const clientHistory = history.map((m) => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.text }));
+    const payload = { messages: clientHistory, sessionId: sessionIdRef.current };
 
-    fetch('/api/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      // use 'include' so cookies are sent/accepted even in cross-origin dev setups
-      credentials: 'include',
-      body: JSON.stringify(payload),
-    })
-      .then(async (res) => {
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err?.error || 'API error');
-        }
-        return res.json();
-      })
-      .then((data) => {
-        const replyText = data?.reply || 'Sorry — I couldn\'t generate a response. Would you like to try again?';
-        const returnedSession = data?.sessionId;
-        if (returnedSession && returnedSession !== sessionIdRef.current) {
-          sessionIdRef.current = returnedSession;
-          try { localStorage.setItem('chat_session_id', returnedSession); } catch {}
-        }
-        // replace loading message with actual reply
-        setMessages((m) => m.map((mm) => (mm.id === loadingId ? { id: `b-${Date.now()}`, role: 'bot', text: replyText } : mm)));
-      })
-      .catch((err) => {
-        console.error('Chat request failed', err);
-        const replyText = 'Sorry — I couldn\'t reach the companion. Would you like to try again?';
-        setMessages((m) => m.map((mm) => (mm.id === loadingId ? { id: `b-${Date.now()}`, role: 'bot', text: replyText } : mm)));
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        // use 'include' so cookies are sent/accepted even in cross-origin dev setups
+        credentials: 'include',
+        body: JSON.stringify(payload),
       });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error || 'API error');
+      }
+      const data = await res.json();
+      const replyText = data?.reply || 'Sorry — I couldn\'t generate a response. Would you like to try again?';
+      const returnedSession = data?.sessionId;
+      if (returnedSession && returnedSession !== sessionIdRef.current) {
+        sessionIdRef.current = returnedSession;
+        try { localStorage.setItem('chat_session_id', returnedSession); } catch {}
+      }
+      // replace loading message with actual reply
+      setMessages((m) => m.map((mm) => (mm.id === loadingId ? { id: `b-${Date.now()}`, role: 'bot', text: replyText } : mm)));
+    } catch (err) {
+      console.error('Chat request failed', err);
+      const replyText = 'Sorry — I couldn\'t reach the companion. Would you like to try again?';
+      setMessages((m) => m.map((mm) => (mm.id === loadingId ? { id: `b-${Date.now()}`, role: 'bot', text: replyText } : mm)));
+    } finally {
+      setInFlight(false);
+    }
   };
 
   const onSubmit = (e: React.FormEvent) => {
@@ -240,9 +243,10 @@ export default function ChatPage() {
           />
           <button
             type="submit"
-            className="px-4 py-2 rounded-md bg-emerald-600 text-white text-sm hover:bg-emerald-700"
+            disabled={inFlight}
+            className="px-4 py-2 rounded-md bg-emerald-600 text-white text-sm hover:bg-emerald-700 disabled:opacity-60"
           >
-            Send
+            {inFlight ? 'Sending…' : 'Send'}
           </button>
         </form>
       </div>
